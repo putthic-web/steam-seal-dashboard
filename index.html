@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Steam Seal Dashboard</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    * { box-sizing: border-box; font-family: "Segoe UI", Arial, sans-serif; }
+    body { margin: 0; background: #f4f7fb; color: #0f172a; }
+
+    .header {
+      background: linear-gradient(135deg, #062b5f, #001b3d);
+      color: white; padding: 24px 36px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+
+    .header h1 { margin: 0; font-size: 28px; }
+    .header p { margin: 6px 0 0; opacity: 0.9; }
+
+    .container {
+      padding: 24px;
+      display: grid;
+      grid-template-columns: 300px 1fr 360px;
+      gap: 18px;
+    }
+
+    .card, .kpi {
+      background: white;
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+      border: 1px solid #e5e7eb;
+    }
+
+    .card h2 { margin-top: 0; font-size: 18px; }
+
+    .baseline-box {
+      background: #f0fdf4;
+      border: 1px solid #86efac;
+      border-radius: 12px;
+      padding: 14px;
+      line-height: 1.8;
+      color: #14532d;
+      font-size: 14px;
+    }
+
+    input[type="file"] {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #93c5fd;
+      border-radius: 10px;
+      background: #f8fbff;
+      margin-top: 10px;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .kpi { min-height: 140px; }
+
+    .kpi-title {
+      font-weight: 700;
+      font-size: 15px;
+      margin-bottom: 18px;
+    }
+
+    .kpi-value {
+      font-size: 38px;
+      font-weight: 800;
+      color: #1d4ed8;
+    }
+
+    .green { color: #16a34a; }
+    .purple { color: #6b21a8; }
+
+    .unit {
+      font-size: 16px;
+      margin-left: 4px;
+      font-weight: 600;
+    }
+
+    .subtext {
+      margin-top: 14px;
+      color: #475569;
+      font-size: 14px;
+    }
+
+    .status-box {
+      padding: 28px;
+      border-radius: 14px;
+      background: #94a3b8;
+      color: white;
+      font-size: 42px;
+      font-weight: 900;
+      text-align: center;
+      margin: 18px 0;
+    }
+
+    .status-green { background: #16a34a; }
+    .status-yellow { background: #eab308; }
+    .status-orange { background: #f97316; }
+    .status-red { background: #ef4444; }
+
+    .summary-list { line-height: 1.9; font-size: 15px; }
+
+    .ai-box {
+      background: #faf5ff;
+      border: 1px solid #e9d5ff;
+      color: #3b0764;
+      border-radius: 12px;
+      padding: 16px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      font-size: 14px;
+      max-height: 420px;
+      overflow-y: auto;
+    }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 12px 16px;
+      background: #2563eb;
+      color: white;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 12px;
+      width: 100%;
+    }
+
+    button:hover { background: #1d4ed8; }
+
+    .logic-box {
+      border-left: 4px solid #2563eb;
+      padding: 12px;
+      background: #f8fafc;
+      border-radius: 10px;
+      font-size: 14px;
+      margin-bottom: 12px;
+    }
+
+    .chart-box { height: 330px; }
+  </style>
+</head>
+
+<body>
+  <div class="header">
+    <div>
+      <h1>AI-Assisted Steam Seal Condition Monitoring</h1>
+      <p>Upload Daily PI Trend File to compare with Normal Baseline</p>
+    </div>
+    <div>
+      <strong>Data Analysis Dashboard</strong>
+      <p>Prototype V3</p>
+    </div>
+  </div>
+
+  <div class="container">
+    <div>
+      <div class="card">
+        <h2>1. Baseline Database</h2>
+        <div class="baseline-box">
+          Baseline Pressure: <strong>241.3 mbar</strong><br />
+          Baseline Valve Position: <strong>0.228 %</strong><br />
+          Load Filter: <strong>&gt; 600 MW</strong><br />
+          Source: <strong>Summary Normal Data</strong>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:18px;">
+        <h2>2. Upload Daily Trend</h2>
+        <p class="subtext">Upload original PI Excel export file (.xlsx)</p>
+        <input type="file" id="dailyFile" accept=".xlsx,.xls,.csv" />
+        <p class="subtext" id="fileName">No file selected</p>
+      </div>
+    </div>
+    <div>
+      <div class="kpi-grid">
+        <div class="kpi">
+          <div class="kpi-title">Baseline Pressure</div>
+          <div class="kpi-value green">241.3<span class="unit">mbar</span></div>
+          <div class="subtext">Normal Summary Data</div>
+        </div>
+
+        <div class="kpi">
+          <div class="kpi-title">Actual Pressure</div>
+          <div class="kpi-value"><span id="actualPressure">-</span><span class="unit">mbar</span></div>
+          <div class="subtext">Average Daily Data</div>
+        </div>
+
+        <div class="kpi">
+          <div class="kpi-title">Pressure Index</div>
+          <div class="kpi-value purple" id="pressureIndex">-</div>
+          <div class="subtext">Actual / Baseline</div>
+        </div>
+
+        <div class="kpi">
+         <div class="kpi-title">Estimated Loss Ratio</div>
+         <div class="kpi-value purple" id="leakageRatio">-</div>
+         <div class="subtext">√(Pressure Index)</div>
+        </div>
+
+        <div class="kpi">
+          <div class="kpi-title">Baseline Valve Position</div>
+          <div class="kpi-value green">0.228<span class="unit">%</span></div>
+          <div class="subtext">Normal Summary Data</div>
+        </div>
+
+        <div class="kpi">
+          <div class="kpi-title">Actual Valve Position</div>
+          <div class="kpi-value"><span id="actualValve">-</span><span class="unit">%</span></div>
+          <div class="subtext">Average Daily Data</div>
+        </div>
+
+        <div class="kpi">
+          <div class="kpi-title">Valve Index</div>
+          <div class="kpi-value purple" id="valveIndex">-</div>
+          <div class="subtext">Actual / Baseline</div>
+        </div>
+
+        <div class="kpi">
+          <div class="kpi-title">Pressure Increase</div>
+          <div class="kpi-value red" id="pressureIncreaseCard">-</div>
+          <div class="subtext">Compared to Baseline</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Pressure Trend Preview</h2>
+        <div class="chart-box">
+          <canvas id="pressureChart"></canvas>
+        </div>
+        <p class="subtext">Blue = Steam Seal Pressure | Red dashed = Baseline Pressure</p>
+      </div>
+
+      <div class="card" style="margin-top:18px;">
+        <h2>Engineering Interpretation Logic</h2>
+        <div class="logic-box">
+          <strong>Pressure High + Valve Normal</strong><br />
+          Possible steam seal / gland / labyrinth leakage.
+        </div>
+        <div class="logic-box">
+          <strong>Pressure High + Valve High</strong><br />
+          Possible control valve or steam supply issue.
+        </div>
+        <div class="logic-box">
+          <strong>Pressure Normal + Valve High</strong><br />
+          Possible early compensation or control abnormal.
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <h2>Status</h2>
+        <div class="status-box" id="statusBox">WAIT</div>
+        <div class="subtext" id="statusText">Upload daily trend file to analyze.</div>
+      </div>
+
+      <div class="card" style="margin-top:18px;">
+        <h2>Summary (Daily Data)</h2>
+        <div class="summary-list">
+          Valid Operating Points: <span id="validCount">-</span><br />
+          Average Load: <span id="avgLoad">-</span> MW<br />
+          Max Pressure: <span id="maxPressure">-</span> mbar<br />
+          Min Pressure: <span id="minPressure">-</span> mbar<br />
+          Average Temperature: <span id="avgTemp">-</span> °C<br />
+          Pressure Increase: <span id="pressureIncrease">-</span> % <br />
+          Estimated Loss Ratio: <span id="leakageRatioSummary">-</span>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:18px;">
+        <h2>AI Maintenance Analysis</h2>
+        <div class="ai-box" id="copilotPrompt">
+          Upload daily trend file and click Analyze with AI.
+        </div>
+        <button onclick="analyzeWithAI()">Analyze with AI</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const BASELINE_PRESSURE = 241.3;
+    const BASELINE_VALVE = 0.228;
+    const LOAD_FILTER = 600;
+
+    let pressureChart = null;
+
+    document.getElementById("dailyFile").addEventListener("change", readFile);
+
+    function readFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      document.getElementById("fileName").innerText = file.name;
+
+      const reader = new FileReader();
+
+      reader.onload = function(e) {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+        processPIData(rows);
+      };
+
+      reader.readAsArrayBuffer(file);
+    }
+
+    function processPIData(rows) {
+      let pressureSum = 0;
+      let valveSum = 0;
+      let loadSum = 0;
+      let tempSum = 0;
+      let count = 0;
+
+      let maxPressure = -Infinity;
+      let minPressure = Infinity;
+
+      const chartLabels = [];
+      const pressureData = [];
+      const baselineData = [];
+
+      for (let i = 17; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row) continue;
+
+        const time = row[1];
+
+        // Original PI Export Mapping
+        // E = Valve Position, F = Pressure, G = Temp, H = Load
+        const valve = parseNumber(row[4]);
+        const pressure = parseNumber(row[5]);
+        const temp = parseNumber(row[6]);
+        const load = parseNumber(row[7]);
+
+        if (isNaN(load) || isNaN(pressure) || isNaN(valve)) continue;
+
+        if (load > LOAD_FILTER) {
+          pressureSum += pressure;
+          valveSum += valve;
+          loadSum += load;
+
+          if (!isNaN(temp)) tempSum += temp;
+
+          maxPressure = Math.max(maxPressure, pressure);
+          minPressure = Math.min(minPressure, pressure);
+
+          chartLabels.push(formatTime(time));
+          pressureData.push(pressure);
+          baselineData.push(BASELINE_PRESSURE);
+
+          count++;
+        }
+      }
+
+      if (count === 0) {
+        alert("No valid data found where Load > 600 MW.");
+        return;
+      }
+
+      const avgPressure = pressureSum / count;
+      const avgValve = valveSum / count;
+      const avgLoad = loadSum / count;
+      const avgTemp = tempSum / count;
+
+      const pressureIndex = avgPressure / BASELINE_PRESSURE;
+      const valveIndex = avgValve / BASELINE_VALVE;
+      const pressureIncrease = (pressureIndex - 1) * 100;
+      const leakageRatio = Math.sqrt(pressureIndex);
+
+      updateDashboard({
+        avgPressure,
+        avgValve,
+        avgLoad,
+        avgTemp,
+        maxPressure,
+        minPressure,
+        pressureIndex,
+        valveIndex,
+        pressureIncrease,
+        leakageRatio,
+        count
+      });
+
+      updatePressureChart(chartLabels, pressureData, baselineData);
+    }
+
+    function parseNumber(value) {
+      if (value === null || value === undefined) return NaN;
+      if (typeof value === "number") return value;
+      return parseFloat(String(value).replace(",", "").trim());
+    }
+
+    function formatTime(value) {
+      if (!value) return "";
+
+      if (typeof value === "number") {
+        const date = XLSX.SSF.parse_date_code(value);
+        if (!date) return value;
+        return `${date.d}/${date.m} ${String(date.H).padStart(2, "0")}:00`;
+      }
+
+      return String(value);
+    }
+
+function getStatus(index) {
+
+    const deviation = Math.abs(index - 1);
+
+    if (deviation <= 0.05) {
+        return {
+            text: "GREEN",
+            className: "status-green",
+            detail: "Normal condition"
+        };
+    }
+
+    if (deviation <= 0.15) {
+        return {
+            text: "YELLOW",
+            className: "status-yellow",
+            detail: "Slight deviation from baseline"
+        };
+    }
+
+    if (deviation <= 0.30) {
+        return {
+            text: "ORANGE",
+            className: "status-orange",
+            detail: "Abnormal trend requires monitoring"
+        };
+    }
+
+    return {
+        text: "RED",
+        className: "status-red",
+        detail: "Abnormal condition"
+    };
+}
+
+    function updateDashboard(data) {
+      document.getElementById("actualPressure").innerText = data.avgPressure.toFixed(1);
+      document.getElementById("actualValve").innerText = data.avgValve.toFixed(3);
+      document.getElementById("pressureIndex").innerText = data.pressureIndex.toFixed(2);
+      document.getElementById("valveIndex").innerText = data.valveIndex.toFixed(2);
+
+      document.getElementById("validCount").innerText = data.count;
+      document.getElementById("avgLoad").innerText = data.avgLoad.toFixed(0);
+      document.getElementById("maxPressure").innerText = data.maxPressure.toFixed(1);
+      document.getElementById("minPressure").innerText = data.minPressure.toFixed(1);
+      document.getElementById("avgTemp").innerText = data.avgTemp.toFixed(1);
+      document.getElementById("pressureIncrease").innerText = data.pressureIncrease.toFixed(2);
+      document.getElementById("leakageRatio").innerText = data.leakageRatio.toFixed(2);
+      document.getElementById("pressureIncreaseCard").innerText = data.pressureIncrease.toFixed(2) + "%";
+      document.getElementById("leakageRatioSummary").innerText = data.leakageRatio.toFixed(2);
+
+      const status = getStatus(data.pressureIndex);
+      const statusBox = document.getElementById("statusBox");
+
+      statusBox.className = "status-box " + status.className;
+      statusBox.innerText = status.text;
+
+      document.getElementById("statusText").innerText = status.detail;
+
+      generatePrompt(data, status);
+    }
+
+    function updatePressureChart(labels, pressureData, baselineData) {
+      const ctx = document.getElementById("pressureChart").getContext("2d");
+
+      if (pressureChart) {
+        pressureChart.destroy();
+      }
+
+      pressureChart = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: "Steam Seal Manifold Pressure (mbar)",
+              data: pressureData,
+              borderColor: "#2563eb",
+              backgroundColor: "rgba(37, 99, 235, 0.10)",
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0.25
+            },
+            {
+              label: "Baseline Pressure (241.3 mbar)",
+              data: baselineData,
+              borderColor: "#ef4444",
+              borderWidth: 2,
+              borderDash: [6, 6],
+              pointRadius: 0,
+              tension: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            mode: "index",
+            intersect: false
+          },
+          plugins: {
+            legend: {
+              display: true
+            }
+          },
+          scales: {
+            x: {
+              ticks: {
+                maxTicksLimit: 8
+              }
+            },
+            y: {
+              title: {
+                display: true,
+                text: "Pressure (mbar)"
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function generatePrompt(data, status) {
+      const prompt =
+`Steam Seal Condition Assessment
+
+Baseline Data:
+- Baseline Steam Seal Manifold Pressure: ${BASELINE_PRESSURE.toFixed(1)} mbar
+- Baseline Steam Seal Feed Valve Position: ${BASELINE_VALVE.toFixed(3)} %
+- Load filter applied: > ${LOAD_FILTER} MW
+
+Daily Trend Result:
+- Valid operating points: ${data.count}
+- Average Load: ${data.avgLoad.toFixed(0)} MW
+- Average Steam Seal Manifold Pressure: ${data.avgPressure.toFixed(1)} mbar
+- Max Pressure: ${data.maxPressure.toFixed(1)} mbar
+- Min Pressure: ${data.minPressure.toFixed(1)} mbar
+- Average Temperature: ${data.avgTemp.toFixed(1)} °C
+- Average Valve Position: ${data.avgValve.toFixed(3)} %
+
+Calculated Index:
+- Pressure Index = ${data.pressureIndex.toFixed(2)}
+- Pressure Increase = ${data.pressureIncrease.toFixed(1)} %
+- Valve Index = ${data.valveIndex.toFixed(2)}
+- Status = ${status.text}
+
+Engineering Interpretation Request:
+Please analyze this steam seal condition. Focus on whether the abnormal pressure increase is likely related to valve opening or steam seal / gland / labyrinth leakage. Provide possible causes and recommended inspection actions.`;
+
+      document.getElementById("copilotPrompt").innerText = prompt;
+    }
+
+    function copyPrompt() {
+      const text = document.getElementById("copilotPrompt").innerText;
+      navigator.clipboard.writeText(text);
+      alert("Copilot prompt copied!");
+    }
+    async function analyzeWithAI() {
+  const box = document.getElementById("copilotPrompt");
+
+  box.innerText = "AI กำลังวิเคราะห์ข้อมูล กรุณารอสักครู่...";
+
+  const payload = {
+    baselinePressure: BASELINE_PRESSURE,
+    baselineValve: BASELINE_VALVE,
+    actualPressure: document.getElementById("actualPressure").innerText,
+    actualValve: document.getElementById("actualValve").innerText,
+    pressureIndex: document.getElementById("pressureIndex").innerText,
+    valveIndex: document.getElementById("valveIndex").innerText,
+    leakageRatio: document.getElementById("leakageRatio").innerText,
+    status: document.getElementById("statusBox").innerText
+  };
+
+  try {
+    const response = await fetch("https://steam-seal-ai-backend.onrender.com/api/analyze", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      box.innerText = result.analysis;
+    } else {
+      box.innerText = "AI Error: " + result.error;
+    }
+  } catch (error) {
+    box.innerText = "Connection Error: " + error.message;
+  }
+}
+  </script>
+</body>
+</html>
