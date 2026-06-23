@@ -443,39 +443,43 @@
       return String(value);
     }
 
-function getStatus(index) {
+function getStatusByFlowchart(pressureIndex, valveIndex) {
+  const pressureDev = Math.abs(pressureIndex - 1);
+  const valveDev = Math.abs(valveIndex - 1);
 
-    const deviation = Math.abs(index - 1);
-
-    if (deviation <= 0.05) {
-        return {
-            text: "GREEN",
-            className: "status-green",
-            detail: "Normal condition"
-        };
-    }
-
-    if (deviation <= 0.15) {
-        return {
-            text: "YELLOW",
-            className: "status-yellow",
-            detail: "Slight deviation from baseline"
-        };
-    }
-
-    if (deviation <= 0.30) {
-        return {
-            text: "ORANGE",
-            className: "status-orange",
-            detail: "Abnormal trend requires monitoring"
-        };
-    }
-
+  // RED: Pressure หรือ Valve เบี่ยงเบนเกิน 30%
+  if (pressureDev > 0.30 || valveDev > 0.30) {
     return {
-        text: "RED",
-        className: "status-red",
-        detail: "Abnormal condition"
+      text: "RED",
+      className: "status-red",
+      detail: "Abnormal condition. Trend graph and solution required."
     };
+  }
+
+  // ORANGE: Pressure หรือ Valve เบี่ยงเบนเกิน 15%
+  if (pressureDev > 0.15 || valveDev > 0.15) {
+    return {
+      text: "ORANGE",
+      className: "status-orange",
+      detail: "Abnormal trend requires monitoring. Trend graph and solution required."
+    };
+  }
+
+  // YELLOW: Pressure หรือ Valve เบี่ยงเบนเกิน 5%
+  if (pressureDev > 0.05 || valveDev > 0.05) {
+    return {
+      text: "YELLOW",
+      className: "status-yellow",
+      detail: "Slight deviation from baseline. Trend graph and solution required."
+    };
+  }
+
+  // GREEN: อยู่ใน ±5%
+  return {
+    text: "GREEN",
+    className: "status-green",
+    detail: "Normal condition"
+  };
 }
 
     function updateDashboard(data) {
@@ -494,7 +498,7 @@ function getStatus(index) {
       document.getElementById("pressureIncreaseCard").innerText = data.pressureIncrease.toFixed(2) + "%";
       document.getElementById("leakageRatioSummary").innerText = data.leakageRatio.toFixed(2);
 
-      const status = getStatus(data.pressureIndex);
+      const status = getStatusByFlowchart(data.pressureIndex,data.valveIndex);
       const statusBox = document.getElementById("statusBox");
 
       statusBox.className = "status-box " + status.className;
@@ -606,17 +610,19 @@ async function predictValveTrend() {
     365 * 5
 );
 
-    for (let i = 1; i <= forecastDays; i++) {
-        const futureX = currentX + i;
-        const predictedValve = intercept + slope * futureX;
+for (let i = 1; i <= forecastDays; i++) {
+    const futureX = currentX + i;
 
-        labels.push(`+${i}d`);
-        actualData.push(null);
-        forecastData.push(predictedValve);
-        thresholdData.push(thresholdValve);
+    const rawPredictedValue = intercept + slope * futureX;
+    const predictedValue = Math.min(rawPredictedValue, 1.0); // cap at 100%
 
-        if (predictedValve >= thresholdValve) break;
-    }
+    labels.push(`+${i}d`);
+    actualData.push(null);
+    forecastData.push(predictedValue);
+    thresholdData.push(thresholdValve);
+
+    if (predictedValue >= thresholdValve) break;
+}
 
     updateValvePredictionChart(labels, actualData, forecastData, thresholdData);
 
