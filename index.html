@@ -241,6 +241,15 @@
         <p class="subtext">Blue = Steam Seal Pressure | Red dashed = Baseline Pressure</p>
       </div>
 
+      <div class="card chart-card" style="margin-top:18px;">
+        <h2>Valve Trend Prediction</h2>
+     <div class="chart-box">
+        <canvas id="valvePredictionChart"></canvas>
+     </div>
+       <p class="subtext">Blue = Actual Valve Trend | Dashed = Forecast | Red = 150% Baseline Threshold</p>
+     </div>
+
+
       <div class="card" style="margin-top:18px;">
         <h2>Engineering Interpretation Logic</h2>
         <div class="logic-box">
@@ -283,7 +292,14 @@
         <div class="ai-box" id="copilotPrompt">
           Upload daily trend file and click Analyze with AI.
         </div>
+        <div class="card" style="margin-top:18px;">
+        <h2>Valve Prediction Analysis</h2>
+        <div class="ai-box" id="predictionBox">
+          Upload trend file and click Predict Valve Trend.
+    </div>
+  </div>
         <button onclick="analyzeWithAI()">Analyze with AI</button>
+        <button onclick="predictValveTrend()" style="margin-top:12px;">Predict Valve Trend</button>
       </div>
     </div>
   </div>
@@ -293,7 +309,9 @@
     const BASELINE_VALVE = 0.228;
     const LOAD_FILTER = 600;
 
+    let latestProcessedRows = [];
     let pressureChart = null;
+    let valvePredictionChart = null;
 
     document.getElementById("dailyFile").addEventListener("change", readFile);
 
@@ -318,6 +336,8 @@
     }
 
     function processPIData(rows) {
+          latestProcessedRows = [];
+
       let pressureSum = 0;
       let valveSum = 0;
       let loadSum = 0;
@@ -347,6 +367,15 @@
         if (isNaN(load) || isNaN(pressure) || isNaN(valve)) continue;
 
         if (load > LOAD_FILTER) {
+
+          latestProcessedRows.push({
+          time: time,
+          valve: valve,
+          pressure: pressure,
+          load: load,
+          temp: temp
+      });
+
           pressureSum += pressure;
           valveSum += valve;
           loadSum += load;
@@ -476,6 +505,231 @@ function getStatus(index) {
       generatePrompt(data, status);
     }
 
+async function predictValveTrend() {
+    const box = document.getElementById("predictionBox");
+
+    if (!latestProcessedRows || latestProcessedRows.length === 0) {
+        alert("Please upload daily trend file first");
+        return;
+    }
+
+    box.innerText = "กำลังคำนวณ Valve Trend Prediction และให้ AI สรุปผล กรุณารอสักครู่...";
+
+    const baselineValve = BASELINE_VALVE;
+    const thresholdValve = baselineValve * 2.5;
+
+    const dailyMap = {};
+
+    latestProcessedRows.forEach(row => {
+    if (isNaN(row.valve)) return;
+    if (row.valve < 0 || row.valve > 5) return;
+
+    const date = formatTime(row.time).split(" ")[0];
+
+    if (!dailyMap[date]) {
+        dailyMap[date] = {
+            valveSum: 0,
+            count: 0
+        };
+    }
+
+    dailyMap[date].valveSum += row.valve;
+    dailyMap[date].count += 1;
+});
+
+        const dailyData = Object.keys(dailyMap)
+         .filter(date => dailyMap[date].count > 0)
+         .map((date, index) => {
+            return {
+            date: date,
+            x: index,
+            valve: dailyMap[date].valveSum / dailyMap[date].count
+        };
+    })
+    .filter(p => !isNaN(p.valve));
+
+    if (dailyData.length < 3) {
+        box.innerText = "ข้อมูลรายวันน้อยเกินไปสำหรับทำ Prediction ต้องมีอย่างน้อย 3 วัน";
+        return;
+    }
+
+    const n = dailyData.length;
+    let sumX = 0;
+    let sumY = 0;
+    let sumXY = 0;
+    let sumX2 = 0;
+
+    dailyData.forEach(p => {
+        sumX += p.x;
+        sumY += p.valve;
+        sumXY += p.x * p.valve;
+        sumX2 += p.x * p.x;
+    });
+
+    const slope = (n * sumXY - sumX * sumY) / (n * sumX2 - sumX * sumX);
+    const intercept = (sumY - slope * sumX) / n;
+
+    const currentX = dailyData[dailyData.length - 1].x;
+    const currentValve = dailyData[dailyData.length - 1].valve;
+
+    if (slope <= 0) {
+        box.innerText =
+            `Valve Trend Prediction\n\n` +
+            `Baseline Valve: ${baselineValve.toFixed(3)} %\n` +
+            `Threshold 250% Baseline: ${thresholdValve.toFixed(3)} %\n` +
+            `Current Daily Avg Valve: ${currentValve.toFixed(3)} %\n\n` +
+            `ผลการประเมิน: แนวโน้ม Valve Position ไม่ได้เพิ่มขึ้นอย่างต่อเนื่อง จึงยังไม่สามารถคาดการณ์เวลาถึง Threshold ได้`;
+        return;
+    }
+
+    const targetX = (thresholdValve - intercept) / slope;
+    const remainingDays = targetX - currentX;
+    const remainingMonths = remainingDays / 30;
+
+    const predictedDate = new Date();
+    predictedDate.setDate(predictedDate.getDate() + remainingDays);
+
+    const labels = [];
+    const actualData = [];
+    const forecastData = [];
+    const thresholdData = [];
+
+    dailyData.forEach(p => {
+        labels.push(p.date);
+        actualData.push(p.valve);
+        forecastData.push(null);
+        thresholdData.push(thresholdValve);
+    });
+
+    const forecastDays = Math.min(
+    Math.ceil(Math.max(remainingDays, 30)),
+    365 * 5
+);
+
+    for (let i = 1; i <= forecastDays; i++) {
+        const futureX = currentX + i;
+        const predictedValve = intercept + slope * futureX;
+
+        labels.push(`+${i}d`);
+        actualData.push(null);
+        forecastData.push(predictedValve);
+        thresholdData.push(thresholdValve);
+
+        if (predictedValve >= thresholdValve) break;
+    }
+
+    updateValvePredictionChart(labels, actualData, forecastData, thresholdData);
+
+    const summaryText =
+        `Valve Trend Prediction\n\n` +
+        `Baseline Valve: ${baselineValve.toFixed(3)} %\n` +
+        `Threshold 150% Baseline: ${thresholdValve.toFixed(3)} %\n` +
+        `Current Daily Avg Valve: ${currentValve.toFixed(3)} %\n\n` +
+        `Trend Rate: +${slope.toFixed(6)} % / day\n` +
+        `Estimated Remaining Time: ${remainingMonths.toFixed(1)} months\n` +
+        `Predicted Threshold Date: ${predictedDate.toLocaleDateString("th-TH")}\n\n` +
+        `กำลังให้ AI สรุปผลเชิง Maintenance...`;
+
+    box.innerText = summaryText;
+
+    try {
+        const response = await fetch("https://steam-seal-ai-backend.onrender.com/api/predict", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                baselineValve: baselineValve.toFixed(3),
+                thresholdValve: thresholdValve.toFixed(3),
+                currentValve: currentValve.toFixed(3),
+                trendRate: slope.toFixed(6),
+                remainingMonths: remainingMonths.toFixed(1),
+                predictedDate: predictedDate.toLocaleDateString("th-TH"),
+                dataPoints: dailyData.length,
+                loadFilter: LOAD_FILTER
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            box.innerText =
+                summaryText +
+                `\n\nAI Maintenance Prediction Summary\n\n` +
+                result.prediction;
+        } else {
+            box.innerText =
+                summaryText +
+                `\n\nAI Error: ` + result.error;
+        }
+
+    } catch (error) {
+        box.innerText =
+            summaryText +
+            `\n\nConnection Error: ` + error.message;
+    }
+}
+
+    function updateValvePredictionChart(labels, actualData, forecastData, thresholdData) {
+    const ctx = document.getElementById("valvePredictionChart").getContext("2d");
+
+    if (valvePredictionChart) {
+        valvePredictionChart.destroy();
+    }
+
+    valvePredictionChart = new Chart(ctx, {
+        type: "line",
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: "Actual Valve Trend (%)",
+                    data: actualData,
+                    borderWidth: 2,
+                    tension: 0.25
+                },
+                {
+                    label: "Forecast Valve Trend (%)",
+                    data: forecastData,
+                    borderWidth: 2,
+                    borderDash: [8, 6],
+                    tension: 0.25
+                },
+                {
+                    label: "150% Baseline Threshold",
+                    data: thresholdData,
+                    borderWidth: 2,
+                    borderDash: [4, 4],
+                    pointRadius: 0
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: true
+                }
+            },
+            scales: {
+                y: {
+                    title: {
+                        display: true,
+                        text: "Valve Position (%)"
+                    }
+                },
+                x: {
+                    title: {
+                        display: true,
+                        text: "Actual days + forecast days"
+                    }
+                }
+            }
+        }
+    });
+}
+
     function updatePressureChart(labels, pressureData, baselineData) {
       const ctx = document.getElementById("pressureChart").getContext("2d");
 
@@ -538,8 +792,7 @@ function getStatus(index) {
     }
 
     function generatePrompt(data, status) {
-      const prompt =
-`Steam Seal Condition Assessment
+      const prompt =`Steam Seal Condition Assessment
 
 Baseline Data:
 - Baseline Steam Seal Manifold Pressure: ${BASELINE_PRESSURE.toFixed(1)} mbar
