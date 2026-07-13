@@ -3,46 +3,75 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
   <title>Steam Seal Dashboard</title>
 
   <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
-    * { box-sizing: border-box; font-family: "Segoe UI", Arial, sans-serif; }
-    body { margin: 0; background: #f4f7fb; color: #0f172a; }
+    * {
+      box-sizing: border-box;
+      font-family: "Segoe UI", Arial, sans-serif;
+    }
+
+    body {
+      margin: 0;
+      background: #f4f7fb;
+      color: #0f172a;
+    }
 
     .header {
       background: linear-gradient(135deg, #062b5f, #001b3d);
-      color: white; padding: 24px 36px;
-      display: flex; justify-content: space-between; align-items: center;
+      color: white;
+      padding: 24px 36px;
+
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
 
-    .header h1 { margin: 0; font-size: 28px; }
-    .header p { margin: 6px 0 0; opacity: 0.9; }
+    .header h1 {
+      margin: 0;
+      font-size: 28px;
+    }
+
+    .header p {
+      margin: 6px 0 0;
+      opacity: 0.9;
+    }
 
     .container {
       padding: 24px;
+
       display: grid;
-      grid-template-columns: 300px 1fr 360px;
+      grid-template-columns: 300px minmax(0, 1fr) 360px;
       gap: 18px;
+
+      align-items: start;
     }
 
-    .card, .kpi {
+    .card,
+    .kpi {
       background: white;
       border-radius: 14px;
       padding: 20px;
+
       box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
       border: 1px solid #e5e7eb;
     }
 
-    .card h2 { margin-top: 0; font-size: 18px; }
+    .card h2 {
+      margin-top: 0;
+      font-size: 18px;
+    }
 
     .baseline-box {
       background: #f0fdf4;
       border: 1px solid #86efac;
       border-radius: 12px;
       padding: 14px;
+
       line-height: 1.8;
       color: #14532d;
       font-size: 14px;
@@ -51,20 +80,25 @@
     input[type="file"] {
       width: 100%;
       padding: 12px;
+
       border: 1px solid #93c5fd;
       border-radius: 10px;
+
       background: #f8fbff;
       margin-top: 10px;
     }
 
     .kpi-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 14px;
+
       margin-bottom: 18px;
     }
 
-    .kpi { min-height: 140px; }
+    .kpi {
+      min-height: 140px;
+    }
 
     .kpi-title {
       font-weight: 700;
@@ -76,10 +110,21 @@
       font-size: 38px;
       font-weight: 800;
       color: #1d4ed8;
+
+      overflow-wrap: anywhere;
     }
 
-    .green { color: #16a34a; }
-    .purple { color: #6b21a8; }
+    .green {
+      color: #16a34a;
+    }
+
+    .purple {
+      color: #6b21a8;
+    }
+
+    .red {
+      color: #dc2626;
+    }
 
     .unit {
       font-size: 16px;
@@ -96,30 +141,50 @@
     .status-box {
       padding: 28px;
       border-radius: 14px;
+
       background: #94a3b8;
       color: white;
+
       font-size: 42px;
       font-weight: 900;
       text-align: center;
+
       margin: 18px 0;
     }
 
-    .status-green { background: #16a34a; }
-    .status-yellow { background: #eab308; }
-    .status-orange { background: #f97316; }
-    .status-red { background: #ef4444; }
+    .status-green {
+      background: #16a34a;
+    }
 
-    .summary-list { line-height: 1.9; font-size: 15px; }
+    .status-yellow {
+      background: #eab308;
+    }
+
+    .status-orange {
+      background: #f97316;
+    }
+
+    .status-red {
+      background: #ef4444;
+    }
+
+    .summary-list {
+      line-height: 1.9;
+      font-size: 15px;
+    }
 
     .ai-box {
       background: #faf5ff;
       border: 1px solid #e9d5ff;
       color: #3b0764;
+
       border-radius: 12px;
       padding: 16px;
+
       line-height: 1.7;
       white-space: pre-wrap;
       font-size: 14px;
+
       max-height: 420px;
       overflow-y: auto;
     }
@@ -127,184 +192,522 @@
     button {
       border: none;
       border-radius: 10px;
+
       padding: 12px 16px;
+      margin-top: 12px;
+
+      width: 100%;
+
       background: #2563eb;
       color: white;
+
       font-weight: 700;
       cursor: pointer;
-      margin-top: 12px;
-      width: 100%;
     }
 
-    button:hover { background: #1d4ed8; }
+    button:hover {
+      background: #1d4ed8;
+    }
 
     .logic-box {
       border-left: 4px solid #2563eb;
       padding: 12px;
+
       background: #f8fafc;
       border-radius: 10px;
+
       font-size: 14px;
       margin-bottom: 12px;
     }
 
-    .chart-box { height: 330px; }
+    .chart-box {
+      position: relative;
+      height: 390px;
+      width: 100%;
+    }
+
+    .chart-card {
+      overflow: hidden;
+    }
+
+    @media (max-width: 1250px) {
+      .container {
+        grid-template-columns: 260px minmax(0, 1fr);
+      }
+
+      .right-column {
+        grid-column: 1 / -1;
+
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+      }
+
+      .right-column .card {
+        margin-top: 0 !important;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .container {
+        grid-template-columns: 1fr;
+      }
+
+      .kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .right-column {
+        grid-column: auto;
+        grid-template-columns: 1fr;
+      }
+
+      .header {
+        align-items: flex-start;
+        gap: 20px;
+        flex-direction: column;
+      }
+    }
+
+    @media (max-width: 600px) {
+      .container {
+        padding: 12px;
+      }
+
+      .kpi-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .header {
+        padding: 20px;
+      }
+
+      .kpi-value {
+        font-size: 32px;
+      }
+    }
   </style>
 </head>
 
 <body>
+
+  <!-- =============================== -->
+  <!-- Header -->
+  <!-- =============================== -->
+
   <div class="header">
     <div>
       <h1>AI-Assisted Steam Seal Condition Monitoring</h1>
       <p>Upload Daily PI Trend File to compare with Normal Baseline</p>
     </div>
+
     <div>
       <strong>Data Analysis Dashboard</strong>
       <p>Prototype V3</p>
     </div>
   </div>
 
+
+  <!-- =============================== -->
+  <!-- Main Dashboard Layout -->
+  <!-- =============================== -->
+
   <div class="container">
-    <div>
+
+    <!-- =============================== -->
+    <!-- Left Column -->
+    <!-- =============================== -->
+
+    <div class="left-column">
+
       <div class="card">
         <h2>1. Baseline Database</h2>
+
         <div class="baseline-box">
-          Baseline Pressure: <strong>241.3 mbar</strong><br />
-          Baseline Valve Position: <strong>0.228 %</strong><br />
-          Load Filter: <strong>&gt; 600 MW</strong><br />
-          Source: <strong>Summary Normal Data</strong>
+          Baseline Pressure:
+          <strong>241.3 mbar</strong>
+          <br />
+
+          Baseline Valve Position:
+          <strong>0.228 %</strong>
+          <br />
+
+          Load Filter:
+          <strong>&gt; 600 MW</strong>
+          <br />
+
+          Source:
+          <strong>Summary Normal Data</strong>
         </div>
       </div>
 
-      <div class="card" style="margin-top:18px;">
+
+      <div class="card" style="margin-top: 18px;">
         <h2>2. Upload Daily Trend</h2>
-        <p class="subtext">Upload original PI Excel export file (.xlsx)</p>
-        <input type="file" id="dailyFile" accept=".xlsx,.xls,.csv" />
-        <p class="subtext" id="fileName">No file selected</p>
+
+        <p class="subtext">
+          Upload original PI Excel export file (.xlsx)
+        </p>
+
+        <input
+          type="file"
+          id="dailyFile"
+          accept=".xlsx,.xls,.csv"
+        />
+
+        <p class="subtext" id="fileName">
+          No file selected
+        </p>
       </div>
+
     </div>
-    <div>
+
+
+    <!-- =============================== -->
+    <!-- Center Column -->
+    <!-- =============================== -->
+
+    <div class="center-column">
+
+      <!-- KPI Cards -->
+
       <div class="kpi-grid">
-        <div class="kpi">
-          <div class="kpi-title">Baseline Pressure</div>
-          <div class="kpi-value green">241.3<span class="unit">mbar</span></div>
-          <div class="subtext">Normal Summary Data</div>
-        </div>
 
         <div class="kpi">
-          <div class="kpi-title">Actual Pressure</div>
-          <div class="kpi-value"><span id="actualPressure">-</span><span class="unit">mbar</span></div>
-          <div class="subtext">Average Daily Data</div>
+          <div class="kpi-title">
+            Baseline Pressure
+          </div>
+
+          <div class="kpi-value green">
+            241.3
+            <span class="unit">mbar</span>
+          </div>
+
+          <div class="subtext">
+            Normal Summary Data
+          </div>
         </div>
 
-        <div class="kpi">
-          <div class="kpi-title">Pressure Index</div>
-          <div class="kpi-value purple" id="pressureIndex">-</div>
-          <div class="subtext">Actual / Baseline</div>
-        </div>
 
         <div class="kpi">
-         <div class="kpi-title">Estimated Loss Ratio</div>
-         <div class="kpi-value purple" id="leakageRatio">-</div>
-         <div class="subtext">√(Pressure Index)</div>
+          <div class="kpi-title">
+            Actual Pressure
+          </div>
+
+          <div class="kpi-value">
+            <span id="actualPressure">-</span>
+            <span class="unit">mbar</span>
+          </div>
+
+          <div class="subtext">
+            Average Daily Data
+          </div>
         </div>
 
-        <div class="kpi">
-          <div class="kpi-title">Baseline Valve Position</div>
-          <div class="kpi-value green">0.228<span class="unit">%</span></div>
-          <div class="subtext">Normal Summary Data</div>
-        </div>
 
         <div class="kpi">
-          <div class="kpi-title">Actual Valve Position</div>
-          <div class="kpi-value"><span id="actualValve">-</span><span class="unit">%</span></div>
-          <div class="subtext">Average Daily Data</div>
+          <div class="kpi-title">
+            Pressure Index
+          </div>
+
+          <div
+            class="kpi-value purple"
+            id="pressureIndex"
+          >
+            -
+          </div>
+
+          <div class="subtext">
+            Actual / Baseline
+          </div>
         </div>
 
-        <div class="kpi">
-          <div class="kpi-title">Valve Index</div>
-          <div class="kpi-value purple" id="valveIndex">-</div>
-          <div class="subtext">Actual / Baseline</div>
-        </div>
 
         <div class="kpi">
-          <div class="kpi-title">Pressure Increase</div>
-          <div class="kpi-value red" id="pressureIncreaseCard">-</div>
-          <div class="subtext">Compared to Baseline</div>
+          <div class="kpi-title">
+            Estimated Loss Ratio
+          </div>
+
+          <div
+            class="kpi-value purple"
+            id="leakageRatio"
+          >
+            -
+          </div>
+
+          <div class="subtext">
+            √(Pressure Index)
+          </div>
         </div>
+
+
+        <div class="kpi">
+          <div class="kpi-title">
+            Baseline Valve Position
+          </div>
+
+          <div class="kpi-value green">
+            0.228
+            <span class="unit">%</span>
+          </div>
+
+          <div class="subtext">
+            Normal Summary Data
+          </div>
+        </div>
+
+
+        <div class="kpi">
+          <div class="kpi-title">
+            Actual Valve Position
+          </div>
+
+          <div class="kpi-value">
+            <span id="actualValve">-</span>
+            <span class="unit">%</span>
+          </div>
+
+          <div class="subtext">
+            Average Daily Data
+          </div>
+        </div>
+
+
+        <div class="kpi">
+          <div class="kpi-title">
+            Valve Index
+          </div>
+
+          <div
+            class="kpi-value purple"
+            id="valveIndex"
+          >
+            -
+          </div>
+
+          <div class="subtext">
+            Actual / Baseline
+          </div>
+        </div>
+
+
+        <div class="kpi">
+          <div class="kpi-title">
+            Pressure Increase
+          </div>
+
+          <div
+            class="kpi-value red"
+            id="pressureIncreaseCard"
+          >
+            -
+          </div>
+
+          <div class="subtext">
+            Compared to Baseline
+          </div>
+        </div>
+
       </div>
+
+
+      <!-- Pressure Chart -->
 
       <div class="card">
         <h2>Pressure Trend Preview</h2>
+
         <div class="chart-box">
           <canvas id="pressureChart"></canvas>
         </div>
-        <p class="subtext">Blue = Steam Seal Pressure | Red dashed = Baseline Pressure</p>
+
+        <p class="subtext">
+          Blue = Steam Seal Pressure |
+          Red dashed = Baseline Pressure
+        </p>
       </div>
 
-      <div class="card chart-card" style="margin-top:18px;">
-        <h2>Valve Trend Prediction</h2>
-     <div class="chart-box">
-        <canvas id="valvePredictionChart"></canvas>
-     </div>
-       <p class="subtext">Blue = Actual Valve Trend | Dashed = Forecast | Red = 150% Baseline Threshold</p>
-     </div>
+
+      <!-- Valve and Cost Forecast Chart -->
+
+      <div
+        class="card chart-card"
+        style="margin-top: 18px;"
+      >
+        <h2>Steam Seal Replacement Forecast</h2>
+
+        <div class="chart-box">
+          <canvas id="valvePredictionChart"></canvas>
+        </div>
+      </div>
 
 
-      <div class="card" style="margin-top:18px;">
+      <!-- Engineering Interpretation -->
+
+      <div
+        class="card"
+        style="margin-top: 18px;"
+      >
         <h2>Engineering Interpretation Logic</h2>
+
         <div class="logic-box">
-          <strong>Pressure High + Valve Normal</strong><br />
+          <strong>
+            Pressure High + Valve Normal
+          </strong>
+          <br />
+
           Possible steam seal / gland / labyrinth leakage.
         </div>
+
         <div class="logic-box">
-          <strong>Pressure High + Valve High</strong><br />
+          <strong>
+            Pressure High + Valve High
+          </strong>
+          <br />
+
           Possible control valve or steam supply issue.
         </div>
+
         <div class="logic-box">
-          <strong>Pressure Normal + Valve High</strong><br />
+          <strong>
+            Pressure Normal + Valve High
+          </strong>
+          <br />
+
           Possible early compensation or control abnormal.
         </div>
       </div>
+
     </div>
 
-    <div>
+
+    <!-- =============================== -->
+    <!-- Right Column -->
+    <!-- =============================== -->
+
+    <div class="right-column">
+
+      <!-- Status -->
+
       <div class="card">
         <h2>Status</h2>
-        <div class="status-box" id="statusBox">WAIT</div>
-        <div class="subtext" id="statusText">Upload daily trend file to analyze.</div>
-      </div>
 
-      <div class="card" style="margin-top:18px;">
-        <h2>Summary (Daily Data)</h2>
-        <div class="summary-list">
-          Valid Operating Points: <span id="validCount">-</span><br />
-          Average Load: <span id="avgLoad">-</span> MW<br />
-          Max Pressure: <span id="maxPressure">-</span> mbar<br />
-          Min Pressure: <span id="minPressure">-</span> mbar<br />
-          Average Temperature: <span id="avgTemp">-</span> °C<br />
-          Pressure Increase: <span id="pressureIncrease">-</span> % <br />
-          Estimated Loss Ratio: <span id="leakageRatioSummary">-</span>
+        <div
+          class="status-box"
+          id="statusBox"
+        >
+          WAIT
+        </div>
+
+        <div
+          class="subtext"
+          id="statusText"
+        >
+          Upload daily trend file to analyze.
         </div>
       </div>
 
-      <div class="card" style="margin-top:18px;">
+
+      <!-- Summary -->
+
+      <div
+        class="card"
+        style="margin-top: 18px;"
+      >
+        <h2>Summary (Daily Data)</h2>
+
+        <div class="summary-list">
+
+          Valid Operating Points:
+          <span id="validCount">-</span>
+          <br />
+
+          Average Load:
+          <span id="avgLoad">-</span>
+          MW
+          <br />
+
+          Max Pressure:
+          <span id="maxPressure">-</span>
+          mbar
+          <br />
+
+          Min Pressure:
+          <span id="minPressure">-</span>
+          mbar
+          <br />
+
+          Average Temperature:
+          <span id="avgTemp">-</span>
+          °C
+          <br />
+
+          Pressure Increase:
+          <span id="pressureIncrease">-</span>
+          %
+          <br />
+
+          Estimated Loss Ratio:
+          <span id="leakageRatioSummary">-</span>
+
+        </div>
+      </div>
+
+
+      <!-- AI Maintenance Analysis -->
+
+      <div
+        class="card"
+        style="margin-top: 18px;"
+      >
         <h2>AI Maintenance Analysis</h2>
-        <div class="ai-box" id="copilotPrompt">
+
+        <div
+          class="ai-box"
+          id="copilotPrompt"
+        >
           Upload daily trend file and click Analyze with AI.
         </div>
-        <div class="card" style="margin-top:18px;">
-        <h2>Valve Prediction Analysis</h2>
-        <div class="ai-box" id="predictionBox">
-          Upload trend file and click Predict Valve Trend.
-    </div>
-  </div>
-        <button onclick="analyzeWithAI()">Analyze with AI</button>
-        <button onclick="predictValveTrend()" style="margin-top:12px;">Predict Valve Trend</button>
+
+        <button
+          type="button"
+          onclick="analyzeWithAI()"
+        >
+          Analyze with AI
+        </button>
       </div>
+
+
+      <!-- Valve Prediction Analysis -->
+
+      <div
+        class="card"
+        style="margin-top: 18px;"
+      >
+        <h2>Valve Prediction Analysis</h2>
+
+        <div
+          class="ai-box"
+          id="predictionBox"
+        >
+          Upload trend file and click Predict Valve Trend.
+        </div>
+
+        <button
+          type="button"
+          onclick="predictValveTrend()"
+        >
+          Predict Valve Trend
+        </button>
+      </div>
+
     </div>
+
   </div>
 
+
+
   <script>
+
     const BASELINE_PRESSURE = 241.3;
     const BASELINE_VALVE = 0.228;
     const LOAD_FILTER = 600;
@@ -609,22 +1012,109 @@ async function predictValveTrend() {
     Math.ceil(Math.max(remainingDays, 30)),
     365 * 5
 );
+// ===============================
+// Economic Forecast Parameters
+// ===============================
 
-for (let i = 1; i <= forecastDays; i++) {
+const steamCost = 0.62;                 // THB/kg
+const replacementCost = 13000000;       // THB
+// Temporary Assumption
+const baseFlow = 1.0;                   // kg/s @ Loss Ratio = 1
+let accumulatedCost = 0;
+const costForecastData = [];
+const replacementCostData = [];
+let technicalDay = null;
+let economicDay = null;
+const maxForecastDays = 365 * 5; // Forecast สูงสุด 5 ปี
+
+for (let i = 1; i <= maxForecastDays; i++) {
     const futureX = currentX + i;
 
     const rawPredictedValue = intercept + slope * futureX;
-    const predictedValue = Math.min(rawPredictedValue, 1.0); // cap at 100%
+
+    // Valve เปิดได้สูงสุด 100%
+    const predictedValue = Math.min(rawPredictedValue, 1.0);
+
+    // V1 Proxy Model:
+    // Loss Ratio แปรผันตาม Valve เทียบกับ Baseline
+    const estimatedLossRatio = Math.max(
+        predictedValue / baselineValve,
+        0
+    );
+
+    const estimatedFlow = estimateFlow(estimatedLossRatio);
+    const dailyCost = calculateDailyCost(estimatedFlow);
+
+    accumulatedCost += dailyCost;
 
     labels.push(`+${i}d`);
     actualData.push(null);
     forecastData.push(predictedValue);
+    costForecastData.push(accumulatedCost);
     thresholdData.push(thresholdValve);
 
-    if (predictedValue >= thresholdValve) break;
+    // บันทึกวันที่ถึง Technical Threshold ครั้งแรก
+    if (
+        technicalDay === null &&
+        predictedValue >= thresholdValve
+    ) {
+        technicalDay = i;
+    }
+    // บันทึกวันที่ถึง Economic Threshold ครั้งแรก
+    if (
+        economicDay === null &&
+        accumulatedCost >= replacementCost
+    ) {
+        economicDay = i;
+    }
+    // เมื่อพบทั้งสองเหตุการณ์แล้ว จึงหยุด Forecast
+    if (technicalDay !== null && economicDay !== null) {
+        break;
+    }
 }
 
-    updateValvePredictionChart(labels, actualData, forecastData, thresholdData);
+while (costForecastData.length < labels.length) {
+    costForecastData.unshift(null);
+}
+
+while (replacementCostData.length < labels.length) {
+    replacementCostData.push(replacementCost);
+}
+
+    const technicalDate = technicalDay !== null
+    ? new Date(Date.now() + technicalDay * 86400000)
+    : null;
+
+    const economicDate = economicDay !== null
+    ? new Date(Date.now() + economicDay * 86400000)
+    : null;
+
+   let decisionType = "MONITOR";
+   let recommendedDay = null;
+   let dayDifference = null;
+
+if (technicalDay !== null && economicDay !== null) {
+    dayDifference = Math.abs(technicalDay - economicDay);
+
+    if (economicDay < technicalDay) {
+        decisionType = "ECONOMIC";
+        recommendedDay = economicDay;
+    } else if (technicalDay < economicDay) {
+        decisionType = "TECHNICAL";
+        recommendedDay = technicalDay;
+    } else {
+        decisionType = "BOTH";
+        recommendedDay = technicalDay;
+    }
+} else if (economicDay !== null) {
+    decisionType = "ECONOMIC";
+    recommendedDay = economicDay;
+} else if (technicalDay !== null) {
+    decisionType = "TECHNICAL";
+    recommendedDay = technicalDay;
+}
+    
+    updateValvePredictionChart(labels,actualData,forecastData,thresholdData,costForecastData,replacementCostData);
 
     const summaryText =
         `Valve Trend Prediction\n\n` +
@@ -645,14 +1135,34 @@ for (let i = 1; i <= forecastDays; i++) {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                baselineValve: baselineValve.toFixed(3),
-                thresholdValve: thresholdValve.toFixed(3),
-                currentValve: currentValve.toFixed(3),
-                trendRate: slope.toFixed(6),
-                remainingMonths: remainingMonths.toFixed(1),
-                predictedDate: predictedDate.toLocaleDateString("th-TH"),
-                dataPoints: dailyData.length,
-                loadFilter: LOAD_FILTER
+    baselineValve: baselineValve.toFixed(3),
+    thresholdValve: thresholdValve.toFixed(3),
+    currentValve: currentValve.toFixed(3),
+    trendRate: slope.toFixed(6),
+
+    technicalDay: technicalDay,
+    technicalDate: technicalDate
+        ? technicalDate.toLocaleDateString("th-TH")
+        : null,
+
+    economicDay: economicDay,
+    economicDate: economicDate
+        ? economicDate.toLocaleDateString("th-TH")
+        : null,
+
+    accumulatedCost: Math.round(accumulatedCost),
+    replacementCost: replacementCost,
+    steamCost: steamCost,
+
+    decisionType: decisionType,
+    recommendedDay: recommendedDay,
+    dayDifference: dayDifference,
+
+    dataPoints: dailyData.length,
+    loadFilter: LOAD_FILTER,
+
+    modelNote:
+        "Economic forecast is estimated from valve-based loss ratio and assumed flow model."
             })
         });
 
@@ -674,55 +1184,179 @@ for (let i = 1; i <= forecastDays; i++) {
             summaryText +
             `\n\nConnection Error: ` + error.message;
     }
+
+function estimateFlow(lossRatio) {
+    return baseFlow * lossRatio;
 }
 
-    function updateValvePredictionChart(labels, actualData, forecastData, thresholdData) {
-    const ctx = document.getElementById("valvePredictionChart").getContext("2d");
+function calculateDailyCost(flow) {
+    return flow * steamCost * 86400;
+}
+}
+function updateValvePredictionChart(
+    labels,
+    actualData,
+    forecastData,
+    thresholdData,
+    costForecastData,
+    replacementCostData
+) {
+    const ctx = document
+        .getElementById("valvePredictionChart")
+        .getContext("2d");
 
     if (valvePredictionChart) {
         valvePredictionChart.destroy();
     }
+    const forecastStartIndex = actualData.findIndex(v => v === null);
 
+const todayLinePlugin = {
+    id: "todayLine",
+    afterDatasetsDraw(chart) {
+        if (forecastStartIndex < 0) return;
+
+        const { ctx, chartArea, scales } = chart;
+        const x = scales.x.getPixelForValue(forecastStartIndex - 0.5);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.setLineDash([6, 6]);
+        ctx.moveTo(x, chartArea.top);
+        ctx.lineTo(x, chartArea.bottom);
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = "#9ca3af";
+        ctx.stroke();
+
+        ctx.setLineDash([]);
+        ctx.fillStyle = "#6b7280";
+        ctx.font = "12px Arial";
+        ctx.fillText("Today / Forecast", x + 8, chartArea.top + 14);
+
+        ctx.restore();
+    }
+};
     valvePredictionChart = new Chart(ctx, {
         type: "line",
         data: {
             labels: labels,
             datasets: [
                 {
-                    label: "Actual Valve Trend (%)",
+                    label: "Actual Valve",
                     data: actualData,
+                    yAxisID: "yValve",
+                    borderColor: "#2196f3",
+                    backgroundColor: "rgba(33, 150, 243, 0.12)",
                     borderWidth: 2,
+                    pointRadius: 3,
                     tension: 0.25
                 },
                 {
-                    label: "Forecast Valve Trend (%)",
+                    label: "Forecast Valve",
                     data: forecastData,
-                    borderWidth: 2,
-                    borderDash: [8, 6],
+                    yAxisID: "yValve",
+                    borderColor: "#7e57c2",
+                    backgroundColor: "rgba(126, 87, 194, 0.12)",
+                    borderWidth: 4,
+                    borderDash: [12, 6],
+                    pointRadius: 0,
                     tension: 0.25
                 },
                 {
-                    label: "150% Baseline Threshold",
+                    label: "Valve Limit 150%",
                     data: thresholdData,
+                    yAxisID: "yValve",
+                    borderColor: "#e53935",
+                    backgroundColor: "rgba(229, 57, 53, 0.08)",
                     borderWidth: 2,
-                    borderDash: [4, 4],
+                    borderDash: [6, 6],
+                    pointRadius: 0
+                },
+                {
+                    label: "Estimated Economic Loss",
+                    data: costForecastData.map(v => v / 1000000),
+                    yAxisID: "yCost",
+                    borderColor: "#fb8c00",
+                    backgroundColor: "rgba(251, 140, 0, 0.18)",
+                    borderWidth: 3,
+                    pointRadius: 2,
+                    fill: true,
+                    tension: 0.3
+                },
+                {
+                    label: "Replacement Cost",
+                    data: replacementCostData.map(v => v / 1000000),
+                    yAxisID: "yCost",
+                    borderColor: "#212121",
+                    backgroundColor: "rgba(33, 33, 33, 0.08)",
+                    borderWidth: 2,
+                    borderDash: [8, 5],
                     pointRadius: 0
                 }
             ]
         },
+        plugins: [todayLinePlugin],
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            interaction: {
+                mode: "index",
+                intersect: false
+            },
             plugins: {
                 legend: {
-                    display: true
+                    position: "top",
+                    labels: {
+                        usePointStyle: true,
+                        boxWidth: 10
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.dataset.label || "";
+                            const value = context.raw;
+
+                            if (context.dataset.yAxisID === "yCost") {
+                                return `${label}: ${value.toFixed(2)} MB`;
+                            }
+
+                            return `${label}: ${(value * 100).toFixed(1)}%`;
+                        }
+                    }
                 }
             },
             scales: {
-                y: {
+                yValve: {
+                    type: "linear",
+                    position: "left",
+                    min: 0,
+                    max: 1,
                     title: {
                         display: true,
-                        text: "Valve Position (%)"
+                        text: "Valve Opening (%)"
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return `${(value * 100).toFixed(0)}%`;
+                        }
+                    }
+                },
+                yCost: {
+                    type: "linear",
+                    position: "right",
+                    min: 0,
+                    suggestedMax: 14,
+                    grid: {
+                        drawOnChartArea: false
+                    },
+                    title: {
+                        display: true,
+                        text: "Economic Loss (Million THB)"
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return `${value} MB`;
+                        }
                     }
                 },
                 x: {
