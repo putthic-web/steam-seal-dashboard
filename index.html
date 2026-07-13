@@ -923,7 +923,7 @@ async function predictValveTrend() {
     box.innerText = "กำลังคำนวณ Valve Trend Prediction และให้ AI สรุปผล กรุณารอสักครู่...";
 
     const baselineValve = BASELINE_VALVE;
-    const thresholdValve = baselineValve * 2.5;
+    const thresholdValve = 1.0; // 1.0 = 100% Valve Opening
 
     const dailyMap = {};
 
@@ -953,7 +953,27 @@ async function predictValveTrend() {
             valve: dailyMap[date].valveSum / dailyMap[date].count
         };
     })
+
     .filter(p => !isNaN(p.valve));
+
+// ===============================
+// Find Cost Accumulation Start Day
+// ===============================
+
+// เริ่มถือว่าผิดปกติเมื่อ Valve สูงกว่า Baseline 5%
+const abnormalValveLimit = baselineValve * 1.05;
+
+// หาวันแรกที่ Valve เริ่มผิดปกติ
+const firstAbnormalIndex = dailyData.findIndex(
+    point => point.valve >= abnormalValveLimit
+);
+
+// ถ้าไม่พบ ให้เริ่มย้อนหลัง 15 วัน
+const costStartIndex =
+    firstAbnormalIndex >= 0
+        ? firstAbnormalIndex
+        : Math.max(dailyData.length - 15, 0);
+
 
     if (dailyData.length < 3) {
         box.innerText = "ข้อมูลรายวันน้อยเกินไปสำหรับทำ Prediction ต้องมีอย่างน้อย 3 วัน";
@@ -981,16 +1001,16 @@ async function predictValveTrend() {
 
     if (slope <= 0) {
         box.innerText =
-            `Valve Trend Prediction\n\n` +
-            `Baseline Valve: ${baselineValve.toFixed(3)} %\n` +
-            `Threshold 250% Baseline: ${thresholdValve.toFixed(3)} %\n` +
-            `Current Daily Avg Valve: ${currentValve.toFixed(3)} %\n\n` +
-            `ผลการประเมิน: แนวโน้ม Valve Position ไม่ได้เพิ่มขึ้นอย่างต่อเนื่อง จึงยังไม่สามารถคาดการณ์เวลาถึง Threshold ได้`;
+    `Valve Trend Prediction\n\n` +
+    `Baseline Valve: ${(baselineValve * 100).toFixed(1)} %\n` +
+    `Valve Fully Open Limit: ${(thresholdValve * 100).toFixed(0)} %\n` +
+    `Current Daily Avg Valve: ${(currentValve * 100).toFixed(1)} %\n\n` +
+    `ผลการประเมิน: แนวโน้ม Valve Position ไม่ได้เพิ่มขึ้นอย่างต่อเนื่อง จึงยังไม่สามารถคาดการณ์เวลาถึง Fully Open Limit ได้`;
         return;
     }
 
     const targetX = (thresholdValve - intercept) / slope;
-    const remainingDays = targetX - currentX;
+    const remainingDays = Math.max(targetX - currentX, 0);
     const remainingMonths = remainingDays / 30;
 
     const predictedDate = new Date();
@@ -1005,7 +1025,7 @@ async function predictValveTrend() {
         labels.push(p.date);
         actualData.push(p.valve);
         forecastData.push(null);
-        thresholdData.push(thresholdValve);
+        thresholdData.push(1.0);
     });
 
     const forecastDays = Math.min(
@@ -1021,29 +1041,59 @@ const replacementCost = 13000000;       // THB
 // Temporary Assumption
 const baseFlow = 1.0;                   // kg/s @ Loss Ratio = 1
 let accumulatedCost = 0;
-const costForecastData = [];
+const costForecastData =
+    new Array(dailyData.length).fill(null);
 const replacementCostData = [];
 let technicalDay = null;
 let economicDay = null;
 const maxForecastDays = 365 * 5; // Forecast สูงสุด 5 ปี
 
-for (let i = 1; i <= maxForecastDays; i++) {
-    const futureX = currentX + i;
 
-    const rawPredictedValue = intercept + slope * futureX;
+// คำนวณ Cost Loss จากข้อมูลจริงย้อนหลัง
+for (let i = costStartIndex; i < dailyData.length; i++) {
+    const actualValve = Math.min(
+        Math.max(dailyData[i].valve, 0),
+        1.0
+    );
 
-    // Valve เปิดได้สูงสุด 100%
-    const predictedValue = Math.min(rawPredictedValue, 1.0);
-
-    // V1 Proxy Model:
-    // Loss Ratio แปรผันตาม Valve เทียบกับ Baseline
+    // คิดเฉพาะส่วนที่สูงกว่า Baseline
     const estimatedLossRatio = Math.max(
-        predictedValue / baselineValve,
+        actualValve / baselineValve - 1,
         0
     );
 
-    const estimatedFlow = estimateFlow(estimatedLossRatio);
-    const dailyCost = calculateDailyCost(estimatedFlow);
+    const estimatedFlow =
+        estimateFlow(estimatedLossRatio);
+
+    const dailyCost =
+        calculateDailyCost(estimatedFlow);
+
+    accumulatedCost += dailyCost;
+
+    costForecastData[i] = accumulatedCost;
+}
+
+for (let i = 1; i <= maxForecastDays; i++) {
+    const futureX = currentX + i;
+
+    const rawPredictedValue =
+        intercept + slope * futureX;
+
+    const predictedValue = Math.min(
+        Math.max(rawPredictedValue, 0),
+        1.0
+    );
+
+    const estimatedLossRatio = Math.max(
+        predictedValue / baselineValve - 1,
+        0
+    );
+
+    const estimatedFlow =
+        estimateFlow(estimatedLossRatio);
+
+    const dailyCost =
+        calculateDailyCost(estimatedFlow);
 
     accumulatedCost += dailyCost;
 
@@ -1051,31 +1101,30 @@ for (let i = 1; i <= maxForecastDays; i++) {
     actualData.push(null);
     forecastData.push(predictedValue);
     costForecastData.push(accumulatedCost);
-    thresholdData.push(thresholdValve);
+    thresholdData.push(1.0);
 
-    // บันทึกวันที่ถึง Technical Threshold ครั้งแรก
     if (
         technicalDay === null &&
-        predictedValue >= thresholdValve
+        predictedValue >= 1.0
     ) {
         technicalDay = i;
     }
-    // บันทึกวันที่ถึง Economic Threshold ครั้งแรก
+
     if (
         economicDay === null &&
         accumulatedCost >= replacementCost
     ) {
         economicDay = i;
     }
-    // เมื่อพบทั้งสองเหตุการณ์แล้ว จึงหยุด Forecast
-    if (technicalDay !== null && economicDay !== null) {
+
+    if (
+        technicalDay !== null &&
+        economicDay !== null
+    ) {
         break;
     }
 }
 
-while (costForecastData.length < labels.length) {
-    costForecastData.unshift(null);
-}
 
 while (replacementCostData.length < labels.length) {
     replacementCostData.push(replacementCost);
@@ -1114,17 +1163,34 @@ if (technicalDay !== null && economicDay !== null) {
     recommendedDay = technicalDay;
 }
     
-    updateValvePredictionChart(labels,actualData,forecastData,thresholdData,costForecastData,replacementCostData);
+    updateValvePredictionChart(
+    labels,
+    actualData,
+    forecastData,
+    thresholdData,
+    costForecastData,
+    replacementCostData,
+    technicalDay,
+    economicDay
+);
 
-    const summaryText =
-        `Valve Trend Prediction\n\n` +
-        `Baseline Valve: ${baselineValve.toFixed(3)} %\n` +
-        `Threshold 150% Baseline: ${thresholdValve.toFixed(3)} %\n` +
-        `Current Daily Avg Valve: ${currentValve.toFixed(3)} %\n\n` +
-        `Trend Rate: +${slope.toFixed(6)} % / day\n` +
-        `Estimated Remaining Time: ${remainingMonths.toFixed(1)} months\n` +
-        `Predicted Threshold Date: ${predictedDate.toLocaleDateString("th-TH")}\n\n` +
-        `กำลังให้ AI สรุปผลเชิง Maintenance...`;
+const summaryText =
+    `Valve Trend Prediction\n\n` +
+    `Baseline Valve: ${(baselineValve * 100).toFixed(1)} %\n` +
+    `Valve Fully Open Limit: 100 %\n` +
+    `Current Daily Avg Valve: ${(currentValve * 100).toFixed(1)} %\n\n` +
+    `Trend Rate: +${(slope * 100).toFixed(4)} % / day\n` +
+    `Estimated Time to Fully Open: ${
+        technicalDay !== null
+            ? `${technicalDay} days`
+            : "Not reached within forecast period"
+    }\n` +
+    `Estimated Time to Economic Limit: ${
+        economicDay !== null
+            ? `${economicDay} days`
+            : "Not reached within forecast period"
+    }\n\n` +
+    `กำลังให้ AI เปรียบเทียบ Technical และ Economic Forecast...`;
 
     box.innerText = summaryText;
 
@@ -1199,8 +1265,11 @@ function updateValvePredictionChart(
     forecastData,
     thresholdData,
     costForecastData,
-    replacementCostData
-) {
+    replacementCostData,
+    technicalDay,
+    economicDay
+)
+{
     const ctx = document
         .getElementById("valvePredictionChart")
         .getContext("2d");
@@ -1235,6 +1304,264 @@ const todayLinePlugin = {
         ctx.restore();
     }
 };
+
+function formatForecastDate(days) {
+    if (days === null || days === undefined) {
+        return "-";
+    }
+
+    const date = new Date();
+    date.setHours(12, 0, 0, 0);
+    date.setDate(date.getDate() + days);
+
+    return date.toLocaleDateString("th-TH", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric"
+    });
+}
+
+function drawRoundedRect(
+    ctx,
+    x,
+    y,
+    width,
+    height,
+    radius,
+    fillColor,
+    borderColor
+) {
+    const r = Math.min(radius, width / 2, height / 2);
+
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + width - r, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+    ctx.lineTo(x + width, y + height - r);
+    ctx.quadraticCurveTo(
+        x + width,
+        y + height,
+        x + width - r,
+        y + height
+    );
+    ctx.lineTo(x + r, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+
+    ctx.fillStyle = fillColor;
+    ctx.fill();
+
+    ctx.strokeStyle = borderColor;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+}
+
+function drawDecisionSticker({
+    ctx,
+    chartArea,
+    pointX,
+    pointY,
+    color,
+    title,
+    dateText,
+    daysText,
+    preferredSide = "left"
+}) {
+    const width = 78;
+    const height = 34;
+
+    let boxX =
+        preferredSide === "left"
+            ? pointX - width - 26
+            : pointX + 26;
+
+    let boxY = pointY - height - 28;
+
+    // กัน Sticker หลุดออกนอกกราฟ
+    boxX = Math.max(
+        chartArea.left + 8,
+        Math.min(boxX, chartArea.right - width - 8)
+    );
+
+    boxY = Math.max(
+        chartArea.top + 8,
+        Math.min(boxY, chartArea.bottom - height - 8)
+    );
+
+    // เส้นเชื่อมจาก Sticker ไปยังจุดตัด
+    const lineStartX =
+        preferredSide === "left"
+            ? boxX + width
+            : boxX;
+
+    const lineStartY = boxY + height / 2;
+
+    ctx.save();
+
+    ctx.beginPath();
+    ctx.moveTo(lineStartX, lineStartY);
+    ctx.lineTo(pointX, pointY);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    // จุดวงกลมตรงตำแหน่งตัด
+    ctx.beginPath();
+    ctx.arc(pointX, pointY, 8, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(pointX, pointY, 3, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    // ตัวกล่อง
+    drawRoundedRect(
+        ctx,
+        boxX,
+        boxY,
+        width,
+        height,
+        10,
+        "#ffffff",
+        color
+    );
+
+    // Header สี
+    ctx.fillStyle = color;
+    ctx.fillRect(boxX, boxY, width, 18);
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = 'bold 8px "Segoe UI", Arial';
+    ctx.fillText(
+        title,
+        boxX + width / 2,
+        boxY + 9
+    );
+
+
+    ctx.fillStyle = "#475569";
+    ctx.font = '10px "Segoe UI", Arial';
+    ctx.fillText(
+        daysText,
+        boxX + width / 2,
+        boxY + 31
+    );
+
+    ctx.restore();
+}
+
+const decisionStickerPlugin = {
+    id: "decisionSticker",
+
+    afterDatasetsDraw(chart) {
+        const {
+            ctx,
+            chartArea,
+            scales
+        } = chart;
+
+        const xScale = scales.x;
+        const yValve = scales.yValve;
+        const yCost = scales.yCost;
+
+        if (!xScale || !yValve || !yCost) {
+            return;
+        }
+
+        // ==========================
+        // Technical Sticker
+        // Valve Fully Open = 100%
+        // ==========================
+
+        if (technicalDay !== null) {
+            const label = `+${technicalDay}d`;
+            const technicalIndex =
+                labels.indexOf(label);
+
+            if (technicalIndex >= 0) {
+                const pointX =
+                    xScale.getPixelForValue(
+                        technicalIndex
+                    );
+
+                const pointY =
+                    yValve.getPixelForValue(1.0);
+
+                drawDecisionSticker({
+                    ctx,
+                    chartArea,
+                    pointX,
+                    pointY,
+                    color: "#ef4444",
+                    title: "Valve 100%",
+                    dateText:formatForecastDate(technicalDay),
+                    daysText:`+${technicalDay} Days`,
+                    preferredSide: "left"
+                });
+            }
+        }
+
+        // ==========================
+        // Economic Sticker
+        // Cost reaches 13 MB
+        // ==========================
+
+        if (economicDay !== null) {
+            const label = `+${economicDay}d`;
+            const economicIndex =
+                labels.indexOf(label);
+
+            const replacementCostValue =
+                replacementCostData.find(
+                    value =>
+                        value !== null &&
+                        value !== undefined
+                );
+
+            if (
+                economicIndex >= 0 &&
+                replacementCostValue !== undefined
+            ) {
+                const pointX =
+                    xScale.getPixelForValue(
+                        economicIndex
+                    );
+
+                // กราฟ Cost ถูกหารเป็นหน่วย Million THB
+                const economicLimitMB =
+                    replacementCostValue / 1000000;
+
+                const pointY =
+                    yCost.getPixelForValue(
+                        economicLimitMB
+                    );
+
+                drawDecisionSticker({
+                    ctx,
+                    chartArea,
+                    pointX,
+                    pointY,
+                    color: "#f97316",
+                    title: "13 MB",
+                    dateText:formatForecastDate(economicDay),
+                    daysText:`+${economicDay} Days`,
+                    preferredSide: "left"
+                });
+            }
+        }
+    }
+};
+
     valvePredictionChart = new Chart(ctx, {
         type: "line",
         data: {
@@ -1262,7 +1589,7 @@ const todayLinePlugin = {
                     tension: 0.25
                 },
                 {
-                    label: "Valve Limit 150%",
+                    label: "Valve Fully Open (100%)",
                     data: thresholdData,
                     yAxisID: "yValve",
                     borderColor: "#e53935",
@@ -1277,8 +1604,8 @@ const todayLinePlugin = {
                     yAxisID: "yCost",
                     borderColor: "#fb8c00",
                     backgroundColor: "rgba(251, 140, 0, 0.18)",
-                    borderWidth: 3,
-                    pointRadius: 2,
+                    borderWidth: 2,
+                    pointRadius: 1,
                     fill: true,
                     tension: 0.3
                 },
@@ -1294,13 +1621,13 @@ const todayLinePlugin = {
                 }
             ]
         },
-        plugins: [todayLinePlugin],
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {
-                mode: "index",
-                intersect: false
+                    plugins: [todayLinePlugin,decisionStickerPlugin],
+                    options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                    mode: "index",
+                    intersect: false
             },
             plugins: {
                 legend: {
