@@ -14,7 +14,25 @@
       box-sizing: border-box;
       font-family: "Segoe UI", Arial, sans-serif;
     }
+    .kpi.status-normal {
+    background: #ecfdf5;
+    border: 2px solid #22c55e;
+    }
 
+    .kpi.status-warning {
+    background: #fffbeb;
+    border: 2px solid #eab308;
+    }
+
+    .kpi.status-alert {
+    background: #fff7ed;
+    border: 2px solid #f97316;
+    }
+
+    .kpi.status-critical {
+    background: #fef2f2;
+    border: 2px solid #ef4444;
+   }
     body {
       margin: 0;
       background: #f4f7fb;
@@ -389,7 +407,7 @@
         </div>
 
 
-        <div class="kpi">
+        <div class="kpi" id="actualPressureCard">
           <div class="kpi-title">
             Actual Pressure
           </div>
@@ -457,7 +475,7 @@
         </div>
 
 
-        <div class="kpi">
+        <div class="kpi" id="actualValveCard">
           <div class="kpi-title">
             Actual Valve Position
           </div>
@@ -555,7 +573,7 @@
           </strong>
           <br />
 
-          Possible steam seal / gland / labyrinth leakage.
+          System Malfunction
         </div>
 
         <div class="logic-box">
@@ -564,7 +582,7 @@
           </strong>
           <br />
 
-          Possible control valve or steam supply issue.
+          Possible control valve or steam supply issure
         </div>
 
         <div class="logic-box">
@@ -573,7 +591,7 @@
           </strong>
           <br />
 
-          Possible early compensation or control abnormal.
+          Possible steam seal / gland / labyrinth leakage / foreign material blockage
         </div>
       </div>
 
@@ -738,6 +756,46 @@
       reader.readAsArrayBuffer(file);
     }
 
+
+    function updateKpiStatus(cardId, actualValue, baselineValue) {
+    const card = document.getElementById(cardId);
+
+    if (
+        !card ||
+        isNaN(actualValue) ||
+        isNaN(baselineValue) ||
+        baselineValue === 0
+    ) {
+        return;
+    }
+
+    const differencePercent =
+        Math.abs(
+            (actualValue - baselineValue) /
+            baselineValue
+        ) * 100;
+
+    card.classList.remove(
+        "status-normal",
+        "status-warning",
+        "status-alert",
+        "status-critical"
+    );
+
+    if (differencePercent <= 5) {
+        card.classList.add("status-normal");
+    } else if (differencePercent <= 15) {
+        card.classList.add("status-warning");
+    } else if (differencePercent <= 30) {
+        card.classList.add("status-alert");
+    } else {
+        card.classList.add("status-critical");
+    }
+
+    card.title =
+        `Difference from baseline: ` +
+        `${differencePercent.toFixed(2)}%`;
+}
     function processPIData(rows) {
           latestProcessedRows = [];
 
@@ -900,7 +958,17 @@ function getStatusByFlowchart(pressureIndex, valveIndex) {
       document.getElementById("leakageRatio").innerText = data.leakageRatio.toFixed(2);
       document.getElementById("pressureIncreaseCard").innerText = data.pressureIncrease.toFixed(2) + "%";
       document.getElementById("leakageRatioSummary").innerText = data.leakageRatio.toFixed(2);
+      updateKpiStatus(
+    "actualPressureCard",
+    data.avgPressure,
+    BASELINE_PRESSURE
+     );
 
+     updateKpiStatus(
+    "actualValveCard",
+    data.avgValve,
+    BASELINE_VALVE
+   );
       const status = getStatusByFlowchart(data.pressureIndex,data.valveIndex);
       const statusBox = document.getElementById("statusBox");
 
@@ -999,22 +1067,38 @@ const costStartIndex =
     const currentX = dailyData[dailyData.length - 1].x;
     const currentValve = dailyData[dailyData.length - 1].valve;
 
-    if (slope <= 0) {
-        box.innerText =
-    `Valve Trend Prediction\n\n` +
-    `Baseline Valve: ${(baselineValve * 100).toFixed(1)} %\n` +
-    `Valve Fully Open Limit: ${(thresholdValve * 100).toFixed(0)} %\n` +
-    `Current Daily Avg Valve: ${(currentValve * 100).toFixed(1)} %\n\n` +
-    `ผลการประเมิน: แนวโน้ม Valve Position ไม่ได้เพิ่มขึ้นอย่างต่อเนื่อง จึงยังไม่สามารถคาดการณ์เวลาถึง Fully Open Limit ได้`;
-        return;
-    }
+    const hasIncreasingTrend = slope > 0;
 
-    const targetX = (thresholdValve - intercept) / slope;
-    const remainingDays = Math.max(targetX - currentX, 0);
-    const remainingMonths = remainingDays / 30;
+if (!hasIncreasingTrend) {
+    box.innerText =
+        `Valve Trend Prediction\n\n` +
+        `Baseline Valve: ${(baselineValve * 100).toFixed(1)} %\n` +
+        `Valve Fully Open Limit: ${(thresholdValve * 100).toFixed(0)} %\n` +
+        `Current Daily Avg Valve: ${(currentValve * 100).toFixed(1)} %\n\n` +
+        `Trend Rate: ${(slope * 100).toFixed(4)} % / day\n\n` +
+        `ผลการประเมิน: Valve Position ไม่มีแนวโน้มเพิ่มขึ้น ` +
+        `ระบบจะแสดงเฉพาะข้อมูล Historical โดยยังไม่สร้างเส้น Forecast`;
+}
 
-    const predictedDate = new Date();
-    predictedDate.setDate(predictedDate.getDate() + remainingDays);
+    let targetX = null;
+    let remainingDays = null;
+    let remainingMonths = null;
+
+if (hasIncreasingTrend) {
+    targetX = (thresholdValve - intercept) / slope;
+    remainingDays = Math.max(targetX - currentX, 0);
+    remainingMonths = remainingDays / 30;
+}
+
+    let predictedDate = null;
+
+if (hasIncreasingTrend && remainingDays !== null) {
+    predictedDate = new Date();
+    predictedDate.setDate(
+        predictedDate.getDate() + remainingDays
+    );
+}
+    
 
     const labels = [];
     const actualData = [];
@@ -1028,10 +1112,12 @@ const costStartIndex =
         thresholdData.push(1.0);
     });
 
-    const forecastDays = Math.min(
-    Math.ceil(Math.max(remainingDays, 30)),
-    365 * 5
-);
+    const forecastDays = hasIncreasingTrend
+    ? Math.min(
+        Math.ceil(Math.max(remainingDays, 30)),
+        365 * 5
+    )
+    : 0;
 // ===============================
 // Economic Forecast Parameters
 // ===============================
@@ -1073,6 +1159,9 @@ for (let i = costStartIndex; i < dailyData.length; i++) {
     costForecastData[i] = accumulatedCost;
 }
 
+
+if (hasIncreasingTrend) {
+  
 for (let i = 1; i <= maxForecastDays; i++) {
     const futureX = currentX + i;
 
@@ -1124,7 +1213,7 @@ for (let i = 1; i <= maxForecastDays; i++) {
         break;
     }
 }
-
+}
 
 while (replacementCostData.length < labels.length) {
     replacementCostData.push(replacementCost);
@@ -1179,17 +1268,18 @@ const summaryText =
     `Baseline Valve: ${(baselineValve * 100).toFixed(1)} %\n` +
     `Valve Fully Open Limit: 100 %\n` +
     `Current Daily Avg Valve: ${(currentValve * 100).toFixed(1)} %\n\n` +
-    `Trend Rate: +${(slope * 100).toFixed(4)} % / day\n` +
+    `Trend Rate: ${(slope * 100).toFixed(4)} % / day\n` +
     `Estimated Time to Fully Open: ${
-        technicalDay !== null
+    !hasIncreasingTrend
+        ? "No increasing trend"
+        : technicalDay !== null
             ? `${technicalDay} days`
-            : "Not reached within forecast period"
-    }\n` +
-    `Estimated Time to Economic Limit: ${
-        economicDay !== null
+            : "Not reached within forecast period" }\n` +
+    `Estimated Time to Economic Limit: ${ !hasIncreasingTrend
+        ? "Forecast not calculated"
+        : economicDay !== null
             ? `${economicDay} days`
-            : "Not reached within forecast period"
-    }\n\n` +
+            : "Not reached within forecast period"}\n\n`
     `กำลังให้ AI เปรียบเทียบ Technical และ Economic Forecast...`;
 
     box.innerText = summaryText;
